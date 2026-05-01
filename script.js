@@ -1,4 +1,4 @@
-const nombres = ["Emilio", "Gabriel", "Felipe"];
+const nombres = ["Emilio1", "Gabriel", "Felipe"];
 const lista = document.getElementById("nombres");
 
 nombres.forEach((nombre) => {
