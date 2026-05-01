@@ -1,16 +1,20 @@
-# Plantilla React (base)
+# ADA Industries - First Structure
 
-## Estructura simple
+Prototipo base de portafolio web en React + Vite.
 
-- `index.html`: punto de entrada para Vite.
-- `src/main.jsx`: componente principal `App`.
-- `src/styles.css`: estilos globales.
+## Estructura
 
-## Comandos
+- `src/App.jsx`: layout principal.
+- `src/components/`: componentes reutilizables (ejemplo: `Header`).
+- `src/sections/`: secciones del home (`ServicesSection`, `TeamSection`).
+- `src/data/`: datos mock para contenido inicial.
+- `src/styles/`: estilos globales y futuras variantes.
+- `src/assets/`: imágenes, íconos y recursos visuales.
+
+## Inicio rápido
 
 ```bash
+cd react
 npm install
 npm run dev
-npm run build
-npm run preview
 ```

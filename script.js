@@ -1,4 +1,4 @@
-const nombres = ["Emilio (super gay pero pocas veces)", "Gabriel (gei)", "Felipe (no gei pero si a veces)"];
+const nombres = ["Emilio", "Gabriel", "Felipe"];
 const lista = document.getElementById("nombres");
 
 nombres.forEach((nombre) => {
