@@ -1,0 +1,99 @@
+CREATE DATABASE IF NOT EXISTS booking_saas_db;
+USE booking_saas_db;
+
+-- 1. INQUILINOS (Negocios independientes)
+CREATE TABLE tenants (
+    tenant_id INT AUTO_INCREMENT PRIMARY KEY,
+    nombre_negocio VARCHAR(100) NOT NULL,
+    tipo_negocio VARCHAR(50) NOT NULL,            -- Ej: 'Dentista', 'Restaurante', 'Barberia'
+    slug_url VARCHAR(60) UNIQUE NOT NULL,         -- Liga personalizada: tuapp.com/slug-url
+    timezone VARCHAR(50) DEFAULT 'UTC',           -- Crítico para manejar citas en diferentes zonas horarias
+    activo BOOLEAN DEFAULT TRUE,
+    fecha_registro DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_tenant_slug (slug_url)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 2. CATEGORÍAS DINÁMICAS (Creadas por cada negocio)
+CREATE TABLE categories (
+    category_id INT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id INT NOT NULL,
+    nombre VARCHAR(100) NOT NULL,                  -- Ej: 'Ortodoncia', 'Terrazas', 'Cortes'
+    descripcion TEXT NULL,
+    activo BOOLEAN DEFAULT TRUE,
+    FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE,
+    INDEX idx_categories_tenant (tenant_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 3. TIPOS DE CITA / SERVICIOS (Los elementos que se reservan)
+CREATE TABLE appointment_types (
+    service_id INT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id INT NOT NULL,
+    category_id INT NOT NULL,
+    nombre VARCHAR(150) NOT NULL,                 -- Ej: 'Limpieza Profunda', 'Mesa 4 Personas'
+    descripcion TEXT NULL,
+    duracion_minutos INT NOT NULL,                -- Duración del bloque de tiempo
+    precio DECIMAL(10, 2) NOT NULL DEFAULT 0.00,  -- Costo para el comensal/paciente si aplica
+    capacidad_maxima INT NOT NULL DEFAULT 1,      -- 1 para citas individuales, >1 para mesas o eventos
+    activo BOOLEAN DEFAULT TRUE,
+    FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE,
+    FOREIGN KEY (category_id) REFERENCES categories(category_id) ON DELETE CASCADE,
+    INDEX idx_services_tenant (tenant_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 4. HORARIOS DE TRABAJO / DISPONIBILIDAD (Configuración por negocio)
+CREATE TABLE business_hours (
+    schedule_id INT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id INT NOT NULL,
+    dia_semana TINYINT NOT NULL,                  -- 0 = Domingo, 1 = Lunes, ..., 6 = Sábado
+    hora_apertura TIME NOT NULL,
+    hora_cierre TIME NOT NULL,
+    activo BOOLEAN DEFAULT TRUE,
+    FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE,
+    UNIQUE KEY uq_tenant_dia (tenant_id, dia_semana)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 5. CLIENTES / COMENSALES (Usuarios finales)
+CREATE TABLE customers (
+    customer_id INT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL,
+    telefono VARCHAR(20) NOT NULL,
+    correo VARCHAR(100) NULL,
+    is_registered BOOLEAN DEFAULT FALSE,          -- TRUE si crearon cuenta independiente
+    password_hash VARCHAR(255) NULL,              -- NULL si entraron como invitados mediante la liga
+    fecha_registro DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_customers_telefono (telefono)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 6. CITAS / RESERVACIONES (La tabla central de operaciones)
+CREATE TABLE appointments (
+    appointment_id INT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id INT NOT NULL,
+    customer_id INT NOT NULL,
+    service_id INT NOT NULL,
+    fecha_hora_inicio DATETIME NOT NULL,          -- Guardado preferentemente en UTC
+    fecha_hora_fin DATETIME NOT NULL,
+    estatus ENUM('Pendiente', 'Confirmada', 'Cancelada', 'Asistió') DEFAULT 'Pendiente',
+    notas_cliente TEXT NULL,
+    fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE,
+    FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE RESTRICT,
+    FOREIGN KEY (service_id) REFERENCES appointment_types(service_id) ON DELETE RESTRICT,
+    
+    -- ÍNDICE COMPUESTO CLAVE: Optimiza la consulta pública de disponibilidad y validación de horarios
+    INDEX idx_appointments_lookup (tenant_id, fecha_hora_inicio, fecha_hora_fin, estatus)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 7. LOGS DE CONSUMO (Para el modelo Pay-per-Service)
+CREATE TABLE usage_logs (
+    log_id INT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id INT NOT NULL,
+    appointment_id INT NOT NULL,
+    monto_servicio_cobrado DECIMAL(10, 4) NOT NULL, -- Cuánto le cuesta al negocio esta cita específica
+    procesado BOOLEAN DEFAULT FALSE,                -- Para cortes de caja o cobros acumulados
+    fecha_registro DATETIME DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE,
+    FOREIGN KEY (appointment_id) REFERENCES appointments(appointment_id) ON DELETE CASCADE,
+    INDEX idx_usage_tenant (tenant_id, procesado)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
